@@ -1,3 +1,5 @@
 python-src/secrets.py
 dockerhubtocken.txt
-
+geckodriver/
+geckodriver*
+app.log
