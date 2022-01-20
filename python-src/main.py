@@ -8,6 +8,9 @@ import bs4 as bs
 from datetime import datetime
 import time
 import logging
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+import shutil
 
 __author__ = "Nicolae Panait"
 __version__ = "0.1.0"
@@ -26,8 +29,14 @@ payload = {
 
 def main():
     """ Main entry point of the app """
+    shutil.copyfile('app.log', 'app-{}.log'.format(datetime.now()))
     logging.basicConfig(filename='app.log', filemode='w',format='%(asctime)s - %(message)s', level=logging.INFO)
     with requests.Session() as session:
+        retry = Retry(total=7,connect=5, backoff_factor=3)
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+
         while True:
             #print(50*'-')
             #print(datetime.now())
@@ -38,11 +47,14 @@ def main():
                 #request data parsed by beautiful soup
                 soup = bs.BeautifulSoup(r.text,'html.parser')
                 # Finds the Current temperature
-                logging.info('Current temperature is: {:03.1f}'.format(float(soup.find(id='current_room_tempZ1').get_text())))  #<p id="current_room_tempZ1">23<span class="lastDigit">.9</span></p>
+                logging.info('Current temperature is: {:03.1f} with target {:03.1f}'.format(float(soup.find(id='current_room_tempZ1').get_text()),float(soup.find(id='current_tempZ1').get_text()) ))  #<p id="current_room_tempZ1">23<span class="lastDigit">.9</span></p>
                 # Finds the Heating note indicator
                 logging.info(soup.find('p', class_='heatingNote').get_text().strip())  #<p class="heatingNote heatingAuto">HEATING AUTO</p>
                 # <img id="CH1onOff" class="CH1onOff" src="assets/flame.png" alt="Zone 1 is on">
-                flame = soup.find('img',id_ ='CH1onOff')
+                
+                flame = soup.find("img", class_="CH1onOff display",id="CH1onOff") #soup.find('img', id_ ='CH1onOff')  class="CH1onOff display"
+                #print(flame)
+
                 logging.info('Gaz-Pornit' if flame else 'Gaz-Oprit')
             else:
                 logging.error('Salus server not available')
