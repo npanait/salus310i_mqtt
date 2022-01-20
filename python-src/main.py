@@ -13,7 +13,7 @@ from requests.packages.urllib3.util.retry import Retry
 import shutil
 
 __author__ = "Nicolae Panait"
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __license__ = "MIT"
 
 #This URL will be the URL that your login form points to with the "action" tag.
