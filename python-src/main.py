@@ -93,35 +93,50 @@ def main():
         while True:
             #print(50*'-')
             #print(datetime.now())
-            post = session.post(POST_LOGIN_URL, data=payload)
-            r = session.get(REQUEST_URL)
-            if r:
-                
-                #request data parsed by beautiful soup
-                soup = bs.BeautifulSoup(r.text,'html.parser')
-                # Finds the Current temperature and saves it to the dictionaty
-                # nested_set(d, ['person', 'address', 'city'], 'New York')
-                nested_set(MQTT_MESSAGE, ["CurrentTemperature","Value"], float( soup.find(id='current_room_tempZ1').get_text() ) )
-                nested_set(MQTT_MESSAGE, ["TargetTemperature","Value"], float( soup.find(id='current_tempZ1').get_text() ) )
-                logging.info('Current temperature is: {:03.1f} with target {:03.1f}'.format(MQTT_MESSAGE["CurrentTemperature"]["Value"],MQTT_MESSAGE["TargetTemperature"]["Value"]) )  #<p id="current_room_tempZ1">23<span class="lastDigit">.9</span></p>
-                # Finds the Heating note indicator and saves it to dictionary
-                nested_set(MQTT_MESSAGE, ["Program","Value"],soup.find('p', class_='heatingNote').get_text().strip() )
-                logging.info(MQTT_MESSAGE["Program"]["Value"])  #<p class="heatingNote heatingAuto">HEATING AUTO</p>
-                # <img id="CH1onOff" class="CH1onOff" src="assets/flame.png" alt="Zone 1 is on">
-                
 
-                flame = soup.find("img", class_="CH1onOff display",id="CH1onOff") #soup.find('img', id_ ='CH1onOff')  class="CH1onOff display"
-                #print(flame)
-                if (flame is None):
-                    nested_set(MQTT_MESSAGE, ["Gas","Value"],0)
-                    logging.info('Gaz-Pornit' if flame else 'Gaz-Oprit')
+            try:
+                            
+            #error treatment
+                post = session.post(POST_LOGIN_URL, data=payload)
+                r = session.get(REQUEST_URL)
+                if r:
+                    
+                    #request data parsed by beautiful soup
+                    soup = bs.BeautifulSoup(r.text,'html.parser')
+                    # Finds the Current temperature and saves it to the dictionaty
+                    # nested_set(d, ['person', 'address', 'city'], 'New York')
+                    nested_set(MQTT_MESSAGE, ["CurrentTemperature","Value"], float( soup.find(id='current_room_tempZ1').get_text() ) )
+                    nested_set(MQTT_MESSAGE, ["TargetTemperature","Value"], float( soup.find(id='current_tempZ1').get_text() ) )
+                    logging.info('Current temperature is: {:03.1f} with target {:03.1f}'.format(MQTT_MESSAGE["CurrentTemperature"]["Value"],MQTT_MESSAGE["TargetTemperature"]["Value"]) )  #<p id="current_room_tempZ1">23<span class="lastDigit">.9</span></p>
+                    # Finds the Heating note indicator and saves it to dictionary
+                    nested_set(MQTT_MESSAGE, ["Program","Value"],soup.find('p', class_='heatingNote').get_text().strip() )
+                    logging.info(MQTT_MESSAGE["Program"]["Value"])  #<p class="heatingNote heatingAuto">HEATING AUTO</p>
+                    # <img id="CH1onOff" class="CH1onOff" src="assets/flame.png" alt="Zone 1 is on">
+                    
+
+                    flame = soup.find("img", class_="CH1onOff display",id="CH1onOff") #soup.find('img', id_ ='CH1onOff')  class="CH1onOff display"
+                    #print(flame)
+                    if (flame is None):
+                        nested_set(MQTT_MESSAGE, ["Gas","Value"],0)
+                        logging.info('Gaz-Pornit' if flame else 'Gaz-Oprit')
+                    else:
+                        nested_set(MQTT_MESSAGE, ["Gas","Value"],1)
+                        logging.info('Gaz-Pornit' if flame else 'Gaz-Oprit')
+                    
+                    mqttc.publish(MQTT_TOPIC, payload=json.dumps(MQTT_MESSAGE), qos=0, retain=False)
                 else:
-                    nested_set(MQTT_MESSAGE, ["Gas","Value"],1)
-                    logging.info('Gaz-Pornit' if flame else 'Gaz-Oprit')
-                
-                mqttc.publish(MQTT_TOPIC, payload=json.dumps(MQTT_MESSAGE), qos=0, retain=False)
-            else:
-                logging.error('Salus server not available')
+                    logging.error('Salus server not available')
+            except requests.exceptions.Timeout:
+                # Maybe set up for a retry, or continue in a retry loop
+                time.sleep(300)
+            #except requests.exceptions.TooManyRedirects:
+                # Tell the user their URL was bad and try a different one
+            except requests.exceptions.ConnectionError:
+                time.sleep(300)
+            except requests.exceptions.RequestException as e:
+                # catastrophic error. bail.
+                raise SystemExit(e)
+
             time.sleep(60)
 
 
