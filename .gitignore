@@ -3,3 +3,4 @@ dockerhubtocken.txt
 geckodriver/
 geckodriver*
 app*.log
+python-src/mqtt-test.py

@@ -9,10 +9,12 @@ from datetime import datetime
 import time
 import logging
 from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
+from urllib3.util import Retry
 import shutil
 import json 
 import paho.mqtt.client as mqtt
+import random
+import mqtthostdata 
 
 
 __author__ = "Nicolae Panait"
@@ -20,11 +22,11 @@ __version__ = "0.2.0"
 __license__ = "MIT"
 
 # MQTT constants
-MQTT_HOST="192.168.64.128"
-MQTT_PORT=1883
-MQTT_KEEPALIVE_INTERVAL = 45
-MQTT_TOPIC = "GenusOne"
-MQTT_MESSAGE = {"Sensor Time":datetime.now().isoformat(),
+MQTT_HOST=mqtthostdata.MQTT_HOST
+MQTT_PORT=mqtthostdata.MQTT_PORT
+MQTT_KEEPALIVE_INTERVAL = mqtthostdata.MQTT_KEEPALIVE_INTERVAL
+MQTT_TOPIC = mqtthostdata.MQTT_TOPIC
+MQTT_MESSAGE = {"SensorTime":datetime.now().isoformat(),
                         "CurrentTemperature":{"Value":0, "Type":"temp", "Unit":"C"},
                         "TargetTemperature":{"Value":0,  "Type":"temp", "Unit":"C"}, 
                         "Program":{"Value":"HEATING AUTO"},
@@ -35,12 +37,18 @@ MQTT_MESSAGE = {"Sensor Time":datetime.now().isoformat(),
 #MQTT_MSG=json.dumps({"sepalLength": "6.4","sepalWidth":  "3.2","petalLength": "4.5","petalWidth":  "1.5"});
 # Define on_publish event function
 def on_publish(client, userdata, mid):
-    pass
+    logging.info("MQTT publish OK:, mid {}".format(mid))
     #print ("Message Published...")
 
 def on_connect(client, userdata, flags, rc):
-    client.subscribe(MQTT_TOPIC)
-    #client.publish(MQTT_TOPIC, MQTT_MSG)
+    if rc==0:
+        client.connected_flag=True #set flag
+        #client.subscribe(MQTT_TOPIC)
+        #client.publish(MQTT_TOPIC, MQTT_MSG)
+        print("Client {} connected OK".format(client.client_id))
+    else:
+        logging.error("MQTT Bad connection Returned code=",rc)
+    
 
 def on_message(client, userdata, msg):
     print(msg.topic)
@@ -50,7 +58,8 @@ def on_message(client, userdata, msg):
     client.disconnect() # Got message then disconnect
 
 # Initiate MQTT Client
-mqttc = mqtt.Client()
+client_id = f'python-mqtt-{random.randint(0, 1000)}'
+mqttc = mqtt.Client(client_id)
 
 # Register publish callback function
 mqttc.on_publish = on_publish
@@ -59,7 +68,7 @@ mqttc.on_message = on_message
 
 # Connect with MQTT Broker
 mqttc.username_pw_set(secrets.mqtt_user, secrets.mqtt_pass)
-mqttc.connect(MQTT_HOST, MQTT_PORT, MQTT_KEEPALIVE_INTERVAL)
+
 
 # Loop forever
 #mqttc.loop_forever()
@@ -100,7 +109,9 @@ def main():
                 post = session.post(POST_LOGIN_URL, data=payload)
                 r = session.get(REQUEST_URL)
                 if r:
-                    
+                    # Connect to MQTT broker
+                    mqttc.connect(MQTT_HOST, MQTT_PORT, MQTT_KEEPALIVE_INTERVAL)
+                    MQTT_MESSAGE["SensorTime"] = datetime.now().isoformat()
                     #request data parsed by beautiful soup
                     soup = bs.BeautifulSoup(r.text,'html.parser')
                     # Finds the Current temperature and saves it to the dictionaty
@@ -122,22 +133,26 @@ def main():
                     else:
                         nested_set(MQTT_MESSAGE, ["Gas","Value"],1)
                         logging.info('Gaz-Pornit' if flame else 'Gaz-Oprit')
-                    
+                    #print("publishing mqtt")
                     mqttc.publish(MQTT_TOPIC, payload=json.dumps(MQTT_MESSAGE), qos=0, retain=False)
                 else:
                     logging.error('Salus server not available')
             except requests.exceptions.Timeout:
                 # Maybe set up for a retry, or continue in a retry loop
+                logging.warning(requests.exceptions.Timeout)
                 time.sleep(300)
             #except requests.exceptions.TooManyRedirects:
                 # Tell the user their URL was bad and try a different one
             except requests.exceptions.ConnectionError:
+                logging.warning(requests.exceptions.ConnectionError)
                 time.sleep(300)
             except requests.exceptions.RequestException as e:
                 # catastrophic error. bail.
+                logging.critical(e)
                 raise SystemExit(e)
-
-            time.sleep(60)
+            # If all went good, disconnect from MQTT brocker
+            mqttc.disconnect()
+            time.sleep(300)
 
 
 if __name__ == "__main__":
