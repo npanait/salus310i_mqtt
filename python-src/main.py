@@ -22,8 +22,8 @@ __version__ = "0.2.0"
 __license__ = "MIT"
 
 # MQTT constants
-MQTT_HOST=mqtthostdata.MQTT_HOST
-MQTT_PORT=mqtthostdata.MQTT_PORT
+MQTT_HOST = mqtthostdata.MQTT_HOST
+MQTT_PORT = mqtthostdata.MQTT_PORT
 MQTT_KEEPALIVE_INTERVAL = mqtthostdata.MQTT_KEEPALIVE_INTERVAL
 MQTT_TOPIC = mqtthostdata.MQTT_TOPIC
 MQTT_MESSAGE = {"SensorTime":datetime.now().isoformat(),
